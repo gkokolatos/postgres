@@ -24,6 +24,36 @@ LWLockMinimallyPadded *BufferIOLWLockArray = NULL;
 WritebackContext BackendWritebackContext;
 CkptSortItem *CkptBufferIds;
 
+#ifdef MPROTECT_BUFFERS
+#include <sys/mman.h>
+#include "miscadmin.h"
+/*
+ * Protect the entire shared buffers region such that neither read nor write
+ * is allowed.  Protection will change for specific buffers when accessed
+ * through buffer manager's interface.  The intent is to catch violation of
+ * buffer access rules.
+ */
+static void
+ProtectMemoryPoolBuffers()
+{
+	Size bufferBlocksTotalSize = mul_size((Size)NBuffers, (Size) BLCKSZ);
+	if (IsUnderPostmaster && IsNormalProcessingMode() &&
+		mprotect(BufferBlocks, bufferBlocksTotalSize, PROT_NONE))
+	{
+		int this_errno = errno;
+		ereport(ERROR,
+				(errmsg("unable to set memory level to %d, error %d, "
+						"allocation size %ud, ptr %ld", PROT_NONE,
+						this_errno, (unsigned int) bufferBlocksTotalSize,
+						(long int) BufferBlocks)));
+	}
+}
+#else
+static void
+ProtectMemoryPoolBuffers()
+{
+}
+#endif
 
 /*
  * Data Structures:
@@ -149,6 +179,8 @@ InitBufferPool(void)
 	/* Initialize per-backend file flush context */
 	WritebackContextInit(&BackendWritebackContext,
 						 &backend_flush_after);
+
+	ProtectMemoryPoolBuffers();
 }
 
 /*

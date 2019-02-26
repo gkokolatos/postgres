@@ -925,6 +925,21 @@ fsm_search(Relation rel, uint8 min_cat)
 	}
 }
 
+#ifdef MPROTECT_BUFFERS
+static inline void ResetNextSlotPointer(Buffer buf, Page page) {
+	/*
+	 * When mprotect() is used to detect shared buffer access violations, a lock
+	 * must be acquired so that write access is allowed on this buffer.
+	 */
+	LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
+	((FSMPage) PageGetContents(page))->fp_next_slot = 0;
+	LockBuffer(buf, BUFFER_LOCK_UNLOCK);
+}
+#else
+static inline void ResetNextSlotPointer(Buffer buf, Page page) {
+	((FSMPage) PageGetContents(page))->fp_next_slot = 0;
+}
+#endif
 
 /*
  * Recursive guts of FreeSpaceMapVacuum
@@ -1040,8 +1055,7 @@ fsm_vacuum_page(Relation rel, FSMAddress addr,
 	 * relation.  We don't bother with a lock here, nor with marking the page
 	 * dirty if it wasn't already, since this is just a hint.
 	 */
-	((FSMPage) PageGetContents(page))->fp_next_slot = 0;
-
+	ResetNextSlotPointer(buf, page);
 	ReleaseBuffer(buf);
 
 	return max_avail;

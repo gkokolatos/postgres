@@ -1,0 +1,5 @@
+# noop extension
+comment = 'noop access method - informational NO-OP index'
+default_version = '1.0'
+module_pathname = '$libdir/noop'
+relocatable = false

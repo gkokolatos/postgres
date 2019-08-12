@@ -1,0 +1,118 @@
+CREATE EXTENSION noop;
+CREATE TABLE noop_test (a integer, b integer, c text);
+CREATE UNIQUE INDEX noop_test_b_key ON noop_test USING NOOP (b);
+CREATE UNIQUE INDEX noop_test_c_key ON noop_test USING NOOP (c);
+\d noop_test
+   Table "public.noop_test"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ a      | integer | 
+ b      | integer | 
+ c      | text    | 
+Indexes:
+    "noop_test_b_key" UNIQUE, noop (b)
+    "noop_test_c_key" UNIQUE, noop (c)
+
+\d noop_test_b_key
+Index "public.noop_test_b_key"
+ Column |  Type   | Definition 
+--------+---------+------------
+ b      | integer | b
+unique, noop, for table "public.noop_test"
+
+\d noop_test_c_key
+Index "public.noop_test_c_key"
+ Column | Type | Definition 
+--------+------+------------
+ c      | text | c
+unique, noop, for table "public.noop_test"
+
+SELECT
+	c2.relname,
+	i.indisprimary,
+	i.indisunique,
+	i.indisclustered,
+	i.indisvalid,
+	pg_catalog.pg_get_indexdef(i.indexrelid, 0, true),
+	pg_catalog.pg_get_constraintdef(con.oid, true),
+	contype,
+	condeferrable,
+	condeferred,
+	i.indisreplident,
+	c2.reltablespace
+FROM
+	pg_catalog.pg_class c,
+	pg_catalog.pg_class c2,
+	pg_catalog.pg_index i   LEFT JOIN
+	pg_catalog.pg_constraint con
+ON
+(
+	conrelid = i.indrelid AND
+	conindid = i.indexrelid AND
+	contype IN ('p','u','x')
+)
+WHERE
+	(c2.relname = 'noop_test_b_key' OR
+	c2.relname = 'noop_test_c_key') AND
+	c.oid = i.indrelid AND
+	i.indexrelid = c2.oid
+ORDER BY
+	i.indisprimary DESC,
+	i.indisunique DESC,
+	c2.relname
+;
+     relname     | indisprimary | indisunique | indisclustered | indisvalid |                         pg_get_indexdef                         | pg_get_constraintdef | contype | condeferrable | condeferred | indisreplident | reltablespace 
+-----------------+--------------+-------------+----------------+------------+-----------------------------------------------------------------+----------------------+---------+---------------+-------------+----------------+---------------
+ noop_test_b_key | f            | t           | f              | t          | CREATE UNIQUE INDEX noop_test_b_key ON noop_test USING noop (b) |                      |         |               |             | f              |             0
+ noop_test_c_key | f            | t           | f              | t          | CREATE UNIQUE INDEX noop_test_c_key ON noop_test USING noop (c) |                      |         |               |             | f              |             0
+(2 rows)
+
+INSERT INTO noop_test (a, b, c) SELECT generate_series(0, 9) as a, 1 as b, 'one' as c;
+SELECT count(b) as "b multiples", count(c) as "c multiples", b, c FROM noop_test GROUP BY b, c;
+ b multiples | c multiples | b |  c  
+-------------+-------------+---+-----
+          10 |          10 | 1 | one
+(1 row)
+
+INSERT INTO noop_test SELECT i, i % 10, substr(md5(i::text), 1, 1) FROM generate_series(10,2009) i;
+VACUUM ANALYZE noop_test;
+DELETE FROM noop_test WHERE a %  3 = 0;
+VACUUM FULL noop_test;
+EXPLAIN (COSTS OFF) SELECT count(*) FROM noop_test WHERE b != 1;
+         QUERY PLAN          
+-----------------------------
+ Aggregate
+   ->  Seq Scan on noop_test
+         Filter: (b <> 1)
+(3 rows)
+
+EXPLAIN (COSTS OFF) SELECT count(*) FROM noop_test WHERE c = 'one';
+            QUERY PLAN             
+-----------------------------------
+ Aggregate
+   ->  Seq Scan on noop_test
+         Filter: (c = 'one'::text)
+(3 rows)
+
+SET enable_seqscan=off;
+SET enable_bitmapscan=on;
+SET enable_indexscan=on;
+EXPLAIN (COSTS OFF) SELECT count(*) FROM noop_test WHERE b != 1;
+         QUERY PLAN          
+-----------------------------
+ Aggregate
+   ->  Seq Scan on noop_test
+         Filter: (b <> 1)
+(3 rows)
+
+EXPLAIN (COSTS OFF) SELECT count(*) FROM noop_test WHERE c = 'one';
+            QUERY PLAN             
+-----------------------------------
+ Aggregate
+   ->  Seq Scan on noop_test
+         Filter: (c = 'one'::text)
+(3 rows)
+
+RESET enable_seqscan;
+RESET enable_bitmapscan;
+RESET enable_indexscan;

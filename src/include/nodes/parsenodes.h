@@ -2081,6 +2081,7 @@ typedef struct CreateStmt
 	OnCommitAction oncommit;	/* what do we do at COMMIT? */
 	char	   *tablespacename; /* table space to use, or NULL */
 	char	   *accessMethod;	/* table access method */
+	RangeVar   *like;			/* use this range ver as reference */
 	bool		if_not_exists;	/* just do nothing if it already exists? */
 } CreateStmt;
 

@@ -2625,6 +2625,7 @@ _outCreateStmtInfo(StringInfo str, const CreateStmt *node)
 	WRITE_ENUM_FIELD(oncommit, OnCommitAction);
 	WRITE_STRING_FIELD(tablespacename);
 	WRITE_STRING_FIELD(accessMethod);
+	WRITE_NODE_FIELD(like);
 	WRITE_BOOL_FIELD(if_not_exists);
 }
 

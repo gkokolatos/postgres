@@ -3180,6 +3180,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->options = $11;
 					n->oncommit = $12;
 					n->tablespacename = $13;
+					n->like = NULL;
 					n->if_not_exists = false;
 					$$ = (Node *)n;
 				}
@@ -3199,6 +3200,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->options = $14;
 					n->oncommit = $15;
 					n->tablespacename = $16;
+					n->like = NULL;
 					n->if_not_exists = true;
 					$$ = (Node *)n;
 				}
@@ -3219,6 +3221,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->options = $10;
 					n->oncommit = $11;
 					n->tablespacename = $12;
+					n->like = NULL;
 					n->if_not_exists = false;
 					$$ = (Node *)n;
 				}
@@ -3239,6 +3242,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->options = $13;
 					n->oncommit = $14;
 					n->tablespacename = $15;
+					n->like = NULL;
 					n->if_not_exists = true;
 					$$ = (Node *)n;
 				}
@@ -3259,6 +3263,7 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->options = $12;
 					n->oncommit = $13;
 					n->tablespacename = $14;
+					n->like = NULL;
 					n->if_not_exists = false;
 					$$ = (Node *)n;
 				}
@@ -3279,9 +3284,45 @@ CreateStmt:	CREATE OptTemp TABLE qualified_name '(' OptTableElementList ')'
 					n->options = $15;
 					n->oncommit = $16;
 					n->tablespacename = $17;
+					n->like = NULL;
 					n->if_not_exists = true;
 					$$ = (Node *)n;
 				}
+		| CREATE OptTemp TABLE qualified_name LIKE qualified_name
+			{
+					CreateStmt *n = makeNode(CreateStmt);
+					$4->relpersistence = $2;
+					n->relation = $4;
+					n->like = $6;
+					n->if_not_exists = false;
+
+					{
+						TableLikeClause *tlc = makeNode(TableLikeClause);
+						tlc->relation = $6;
+						tlc->options |= CREATE_TABLE_LIKE_ALL;
+						n->tableElts = list_make1((Node *)tlc);
+					}
+
+					$$ = (Node *)n;
+			}
+		| CREATE OptTemp TABLE IF_P NOT EXISTS qualified_name LIKE
+			qualified_name
+			{
+					CreateStmt *n = makeNode(CreateStmt);
+					$7->relpersistence = $2;
+					n->relation = $7;
+					n->like = $9;
+					n->if_not_exists = true;
+
+					{
+						TableLikeClause *tlc = makeNode(TableLikeClause);
+						tlc->relation = $9;
+						tlc->options |= CREATE_TABLE_LIKE_ALL;
+						n->tableElts = list_make1((Node *)tlc);
+					}
+
+					$$ = (Node *)n;
+			}
 		;
 
 /*

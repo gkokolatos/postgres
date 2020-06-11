@@ -1250,6 +1250,7 @@ _equalCreateStmt(const CreateStmt *a, const CreateStmt *b)
 	COMPARE_SCALAR_FIELD(oncommit);
 	COMPARE_STRING_FIELD(tablespacename);
 	COMPARE_STRING_FIELD(accessMethod);
+	COMPARE_NODE_FIELD(like);
 	COMPARE_SCALAR_FIELD(if_not_exists);
 
 	return true;

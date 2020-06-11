@@ -78,16 +78,19 @@ typedef struct
 	ParseState *pstate;			/* overall parser state */
 	const char *stmtType;		/* "CREATE [FOREIGN] TABLE" or "ALTER TABLE" */
 	RangeVar   *relation;		/* relation to create */
+	RangeVar   *like;			/* relation to use as template */
 	Relation	rel;			/* opened/locked rel, if ALTER */
 	List	   *inhRelations;	/* relations to inherit from */
 	bool		isforeign;		/* true if CREATE/ALTER FOREIGN TABLE */
 	bool		isalter;		/* true if altering existing table */
+	char	   *accessMethod;	/* cloned access method */
 	List	   *columns;		/* ColumnDef items */
 	List	   *ckconstraints;	/* CHECK constraints */
 	List	   *fkconstraints;	/* FOREIGN KEY constraints */
 	List	   *ixconstraints;	/* index-creating constraints */
 	List	   *inh_indexes;	/* cloned indexes from INCLUDING INDEXES */
 	List	   *extstats;		/* cloned extended statistics */
+	List	   *withOptions;	/* cloned with Options */
 	List	   *blist;			/* "before list" of things to do before
 								 * creating the table */
 	List	   *alist;			/* "after list" of things to do after creating
@@ -121,6 +124,8 @@ static void transformTableLikeClause(CreateStmtContext *cxt,
 									 TableLikeClause *table_like_clause);
 static void transformOfType(CreateStmtContext *cxt,
 							TypeName *ofTypename);
+static void transformLike(CreateStmtContext *cxt,
+							const RangeVar *like);
 static CreateStatsStmt *generateClonedExtStatsStmt(RangeVar *heapRel,
 												   Oid heapRelid, Oid source_statsid);
 static List *get_collation(Oid collation, Oid actual_datatype);
@@ -237,6 +242,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 	cxt.rel = NULL;
 	cxt.inhRelations = stmt->inhRelations;
 	cxt.isalter = false;
+	cxt.accessMethod = stmt->accessMethod;
 	cxt.columns = NIL;
 	cxt.ckconstraints = NIL;
 	cxt.fkconstraints = NIL;
@@ -262,6 +268,11 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 					 errmsg("cannot create partitioned table as inheritance child")));
 	}
+
+	Assert(!!(stmt->like) != !!(stmt->accessMethod));	/* grammar enforces */
+
+	if (stmt->like)
+		transformLike(&cxt, stmt->like);
 
 	/*
 	 * Run through each primary element in the table creation clause. Separate
@@ -328,6 +339,7 @@ transformCreateStmt(CreateStmt *stmt, const char *queryString)
 	 */
 	stmt->tableElts = cxt.columns;
 	stmt->constraints = cxt.ckconstraints;
+	stmt->accessMethod = cxt.accessMethod;
 
 	result = lappend(cxt.blist, stmt);
 	result = list_concat(result, cxt.alist);
@@ -1298,6 +1310,38 @@ transformTableLikeClause(CreateStmtContext *cxt, TableLikeClause *table_like_cla
 	 * parent before the child is committed.
 	 */
 	table_close(relation, NoLock);
+}
+
+static void
+transformLike(CreateStmtContext *cxt, const RangeVar *like)
+{
+	Relation relation;
+	ParseCallbackState pcbstate;
+
+	setup_parser_errposition_callback(&pcbstate, cxt->pstate,
+									  like->location);
+
+	relation = relation_openrv(like, AccessShareLock);
+
+	if (relation->rd_rel->relkind != RELKIND_RELATION &&
+		relation->rd_rel->relkind != RELKIND_VIEW &&
+		relation->rd_rel->relkind != RELKIND_MATVIEW &&
+		relation->rd_rel->relkind != RELKIND_COMPOSITE_TYPE &&
+		relation->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
+		ereport(ERROR,
+				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+				 errmsg("\"%s\" is not a table, view, materialized view or composite type",
+						RelationGetRelationName(relation))));
+
+	cancel_parser_errposition_callback(&pcbstate);
+
+	/* Get the access method */
+	cxt->accessMethod = get_am_name(relation->rd_rel->relam);
+
+	/*
+	 * We got what we wanted
+	 */
+	table_close(relation, AccessShareLock);
 }
 
 static void

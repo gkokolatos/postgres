@@ -33,6 +33,7 @@
 #include "common/restricted_token.h"
 #include "common/username.h"
 #include "getopt_long.h"
+#include "lib/stringinfo.h"
 #include "libpq/pqcomm.h"		/* needed for UNIXSOCK_PATH() */
 #include "pg_config_paths.h"
 #include "pg_regress.h"
@@ -455,6 +456,27 @@ replace_string(char *string, const char *replace, const char *replacement)
 }
 
 /*
+ * Replace all occurrences of a string in a stringInfo with a different string.
+ */
+static void
+replace_stringInfo(StringInfo string, const char *replace, const char *replacement)
+{
+	char	   *ptr;
+
+	while ((ptr = strstr(string->data, replace)) != NULL)
+	{
+		char	   *dup = pg_strdup(string->data);
+		size_t		pos = ptr - string->data;
+
+		string->len = pos;
+		appendStringInfoString(string, replacement);
+		appendStringInfoString(string, dup + pos + strlen(replace));
+
+		free(dup);
+	}
+}
+
+/*
  * Convert *.source found in the "source" directory, replacing certain tokens
  * in the file contents with their intended values, and put the resulting files
  * in the "dest" directory, replacing the ".source" prefix in their names with
@@ -521,7 +543,7 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 		char		prefix[MAXPGPATH];
 		FILE	   *infile,
 				   *outfile;
-		char		line[1024];
+		StringInfoData	line;
 
 		/* reject filenames not finishing in ".source" */
 		if (strlen(*name) < 8)
@@ -551,15 +573,18 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 					progname, destfile, strerror(errno));
 			exit(2);
 		}
-		while (fgets(line, sizeof(line), infile))
+
+		initStringInfo(&line);
+		while (fgets(line.data, line.maxlen, infile))
 		{
-			replace_string(line, "@abs_srcdir@", inputdir);
-			replace_string(line, "@abs_builddir@", outputdir);
-			replace_string(line, "@testtablespace@", testtablespace);
-			replace_string(line, "@libdir@", dlpath);
-			replace_string(line, "@DLSUFFIX@", DLSUFFIX);
-			fputs(line, outfile);
+			replace_stringInfo(&line, "@abs_srcdir@", inputdir);
+			replace_stringInfo(&line, "@abs_builddir@", outputdir);
+			replace_stringInfo(&line, "@testtablespace@", testtablespace);
+			replace_stringInfo(&line, "@libdir@", dlpath);
+			replace_stringInfo(&line, "@DLSUFFIX@", DLSUFFIX);
+			fputs(line.data, outfile);
 		}
+		pfree(line.data);
 		fclose(infile);
 		fclose(outfile);
 	}

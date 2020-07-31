@@ -436,6 +436,44 @@ string_matches_pattern(const char *str, const char *pattern)
 
 /*
  * Replace all occurrences of a string in a string with a different string.
+ *
+ * The string grows if there is not enough space.
+ */
+static char *
+replace_string_heap(char *string, size_t *stringlen,
+					const char *replace, const char *replacement)
+{
+	ssize_t		overflowlen;
+	int			occurance;
+	char	   *ptr;
+
+	occurance = 0;
+	overflowlen = strlen(replacement) - strlen(replace);
+	while ((ptr = strstr(string, replace)) != NULL)
+	{
+		char	   *dup = pg_strdup(string);
+
+		occurance++;
+		if (overflowlen > 0 &&
+			((ptr + strlen(ptr) + overflowlen) > (string + *stringlen - 1)))
+		{
+			*stringlen *= 2;
+			string = realloc(string, *stringlen);
+			for (int i = 0; i < occurance; i++)
+				ptr = strstr(string, replace);
+		}
+
+		strlcpy(string, dup, ptr - string + 1);
+		strcat(string, replacement);
+		strcat(string, dup + (ptr - string) + strlen(replace));
+		free(dup);
+	}
+
+	return string;
+}
+
+/*
+ * Replace all occurrences of a string in a string with a different string.
  * NOTE: Assumes there is enough room in the target buffer!
  */
 void
@@ -521,7 +559,8 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 		char		prefix[MAXPGPATH];
 		FILE	   *infile,
 				   *outfile;
-		char		line[1024];
+		char	   *line;
+		size_t		linelen;
 
 		/* reject filenames not finishing in ".source" */
 		if (strlen(*name) < 8)
@@ -551,15 +590,24 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 					progname, destfile, strerror(errno));
 			exit(2);
 		}
-		while (fgets(line, sizeof(line), infile))
+
+		linelen = 1024;
+		line = malloc(linelen);
+		while (fgets(line, linelen, infile))
 		{
-			replace_string(line, "@abs_srcdir@", inputdir);
-			replace_string(line, "@abs_builddir@", outputdir);
-			replace_string(line, "@testtablespace@", testtablespace);
-			replace_string(line, "@libdir@", dlpath);
-			replace_string(line, "@DLSUFFIX@", DLSUFFIX);
+			line = replace_string_heap(line, &linelen,
+									  "@abs_srcdir@", inputdir);
+			line = replace_string_heap(line, &linelen,
+									  "@abs_builddir@", outputdir);
+			line = replace_string_heap(line, &linelen,
+									  "@testtablespace@", testtablespace);
+			line = replace_string_heap(line, &linelen,
+									  "@libdir@", dlpath);
+			line = replace_string_heap(line, &linelen,
+									  "@DLSUFFIX@", DLSUFFIX);
 			fputs(line, outfile);
 		}
+		free(line);
 		fclose(infile);
 		fclose(outfile);
 	}

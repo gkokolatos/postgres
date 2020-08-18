@@ -33,6 +33,7 @@
 #include "common/restricted_token.h"
 #include "common/username.h"
 #include "getopt_long.h"
+#include "lib/stringinfo.h"
 #include "libpq/pqcomm.h"		/* needed for UNIXSOCK_PATH() */
 #include "pg_config_paths.h"
 #include "pg_regress.h"
@@ -434,23 +435,22 @@ string_matches_pattern(const char *str, const char *pattern)
 	return false;
 }
 
-/*
- * Replace all occurrences of a string in a string with a different string.
- * NOTE: Assumes there is enough room in the target buffer!
- */
+
 void
-replace_string(char *string, const char *replace, const char *replacement)
+replace_string(StringInfo string, const char *replace, const char *replacement)
 {
 	char	   *ptr;
 
-	while ((ptr = strstr(string, replace)) != NULL)
+	while ((ptr = strstr(string->data, replace)) != NULL)
 	{
-		char	   *dup = pg_strdup(string);
+		char	   *suffix = pnstrdup(ptr + strlen(replace), string->maxlen);
+		size_t		pos = ptr - string->data;
 
-		strlcpy(string, dup, ptr - string + 1);
-		strcat(string, replacement);
-		strcat(string, dup + (ptr - string) + strlen(replace));
-		free(dup);
+		string->len = pos;
+		appendStringInfoString(string, replacement);
+		appendStringInfoString(string, suffix);
+
+		free(suffix);
 	}
 }
 
@@ -521,7 +521,7 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 		char		prefix[MAXPGPATH];
 		FILE	   *infile,
 				   *outfile;
-		char		line[1024];
+		StringInfoData	line;
 
 		/* reject filenames not finishing in ".source" */
 		if (strlen(*name) < 8)
@@ -551,15 +551,36 @@ convert_sourcefiles_in(const char *source_subdir, const char *dest_dir, const ch
 					progname, destfile, strerror(errno));
 			exit(2);
 		}
-		while (fgets(line, sizeof(line), infile))
+
+		initStringInfo(&line);
+		while (fgets(line.data, line.maxlen, infile))
 		{
-			replace_string(line, "@abs_srcdir@", inputdir);
-			replace_string(line, "@abs_builddir@", outputdir);
-			replace_string(line, "@testtablespace@", testtablespace);
-			replace_string(line, "@libdir@", dlpath);
-			replace_string(line, "@DLSUFFIX@", DLSUFFIX);
-			fputs(line, outfile);
+			/* continue reading if line was cut short and there is more input */
+			if ((strlen(line.data) == line.maxlen - 1) &&
+				line.data[line.maxlen - 2] != '\n')
+			{
+				char	rest[1024];
+				char   *unused __attribute__((unused));
+
+				line.len = line.maxlen - 1;
+				do
+				{
+					unused = fgets(rest, sizeof(rest), infile);
+					appendStringInfoString(&line, rest);
+				} while ((strlen(rest) == sizeof(rest) - 1) &&
+						 rest[sizeof(rest) - 2] != '\n');
+			}
+
+			replace_string(&line, "@abs_srcdir@", inputdir);
+			replace_string(&line, "@abs_builddir@", outputdir);
+			replace_string(&line, "@testtablespace@", testtablespace);
+			replace_string(&line, "@libdir@", dlpath);
+			replace_string(&line, "@DLSUFFIX@", DLSUFFIX);
+			fputs(line.data, outfile);
+
+			resetStringInfo(&line);
 		}
+		pfree(line.data);
 		fclose(infile);
 		fclose(outfile);
 	}

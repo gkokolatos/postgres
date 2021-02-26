@@ -55,12 +55,9 @@ typedef struct
 {
 	DestReceiver pub;			/* publicly-known function pointers */
 	IntoClause *into;			/* target relation specification */
-	/* These fields are filled by intorel_startup: */
-	Relation	rel;			/* relation to write to */
+
+	TableInsertDescData insertDesc;
 	ObjectAddress reladdr;		/* address of rel, for ExecCreateTableAs */
-	CommandId	output_cid;		/* cmin to insert in output tuples */
-	int			ti_options;		/* table_tuple_insert performance options */
-	BulkInsertState bistate;	/* bulk insert state */
 } DR_intorel;
 
 /* utility functions for CTAS definition creation */
@@ -549,19 +546,21 @@ intorel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 	/*
 	 * Fill private fields of myState for use by later routines
 	 */
-	myState->rel = intoRelationDesc;
-	myState->reladdr = intoRelationAddr;
-	myState->output_cid = GetCurrentCommandId(true);
-	myState->ti_options = TABLE_INSERT_SKIP_FSM;
+	myState->insertDesc = (TableInsertDescData){
+		.relation = intoRelationDesc,
+		.cid = GetCurrentCommandId(true),
+		.options = TABLE_INSERT_SKIP_FSM,
+	};
 
 	/*
 	 * If WITH NO DATA is specified, there is no need to set up the state for
 	 * bulk inserts as there are no tuples to insert.
 	 */
-	if (!into->skipData)
-		myState->bistate = GetBulkInsertState();
-	else
-		myState->bistate = NULL;
+	if (into->skipData)
+	{
+		myState->insertDesc.bistate = GetBulkInsertState();
+	}
+	myState->reladdr = intoRelationAddr;
 
 	/*
 	 * Valid smgr_targblock implies something already wrote to the relation.
@@ -589,11 +588,7 @@ intorel_receive(TupleTableSlot *slot, DestReceiver *self)
 		 * would not be cheap either. This also doesn't allow accessing per-AM
 		 * data (say a tuple's xmin), but since we don't do that here...
 		 */
-		table_tuple_insert(myState->rel,
-						   slot,
-						   myState->output_cid,
-						   myState->ti_options,
-						   myState->bistate);
+		table_tuple_insert(&myState->insertDesc, slot);
 	}
 
 	/* We know this is a newly created relation, so there are no indexes */
@@ -612,13 +607,14 @@ intorel_shutdown(DestReceiver *self)
 
 	if (!into->skipData)
 	{
-		FreeBulkInsertState(myState->bistate);
-		table_finish_bulk_insert(myState->rel, myState->ti_options);
+		FreeBulkInsertState(myState->insertDesc.bistate);
+		table_finish_bulk_insert(myState->insertDesc.relation,
+								 myState->insertDesc.options);
 	}
 
 	/* close rel, but keep lock until commit */
-	table_close(myState->rel, NoLock);
-	myState->rel = NULL;
+	table_close(myState->insertDesc.relation, NoLock);
+	myState->insertDesc.relation = NULL;
 }
 
 /*

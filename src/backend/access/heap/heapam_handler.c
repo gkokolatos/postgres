@@ -238,18 +238,17 @@ heapam_tuple_satisfies_snapshot(Relation rel, TupleTableSlot *slot,
  */
 
 static void
-heapam_tuple_insert(Relation relation, TupleTableSlot *slot, CommandId cid,
-					int options, BulkInsertState bistate)
+heapam_tuple_insert(TableInsertDesc desc, TupleTableSlot *slot)
 {
 	bool		shouldFree = true;
 	HeapTuple	tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
 
 	/* Update the tuple with table oid */
-	slot->tts_tableOid = RelationGetRelid(relation);
+	slot->tts_tableOid = RelationGetRelid(desc->relation);
 	tuple->t_tableOid = slot->tts_tableOid;
 
 	/* Perform the insertion, and copy the resulting ItemPointer */
-	heap_insert(relation, tuple, cid, options, bistate);
+	heap_insert(desc->relation, tuple, desc->cid, desc->options, desc->bistate);
 	ItemPointerCopy(&tuple->t_self, &slot->tts_tid);
 
 	if (shouldFree)
@@ -257,22 +256,20 @@ heapam_tuple_insert(Relation relation, TupleTableSlot *slot, CommandId cid,
 }
 
 static void
-heapam_tuple_insert_speculative(Relation relation, TupleTableSlot *slot,
-								CommandId cid, int options,
-								BulkInsertState bistate, uint32 specToken)
+heapam_tuple_insert_speculative(TableInsertDesc desc, TupleTableSlot *slot)
 {
 	bool		shouldFree = true;
 	HeapTuple	tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
 
 	/* Update the tuple with table oid */
-	slot->tts_tableOid = RelationGetRelid(relation);
+	slot->tts_tableOid = RelationGetRelid(desc->relation);
 	tuple->t_tableOid = slot->tts_tableOid;
 
-	HeapTupleHeaderSetSpeculativeToken(tuple->t_data, specToken);
-	options |= HEAP_INSERT_SPECULATIVE;
+	HeapTupleHeaderSetSpeculativeToken(tuple->t_data, desc->specToken);
+	desc->options |= HEAP_INSERT_SPECULATIVE;
 
 	/* Perform the insertion, and copy the resulting ItemPointer */
-	heap_insert(relation, tuple, cid, options, bistate);
+	heap_insert(desc->relation, tuple, desc->cid, desc->options, desc->bistate);
 	ItemPointerCopy(&tuple->t_self, &slot->tts_tid);
 
 	if (shouldFree)
@@ -280,20 +277,31 @@ heapam_tuple_insert_speculative(Relation relation, TupleTableSlot *slot,
 }
 
 static void
-heapam_tuple_complete_speculative(Relation relation, TupleTableSlot *slot,
-								  uint32 specToken, bool succeeded)
+heapam_tuple_complete_speculative(TableInsertDesc desc, TupleTableSlot *slot,
+								  bool succeeded)
 {
 	bool		shouldFree = true;
 	HeapTuple	tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
 
 	/* adjust the tuple's state accordingly */
 	if (succeeded)
-		heap_finish_speculative(relation, &slot->tts_tid);
+		heap_finish_speculative(desc->relation, &slot->tts_tid);
 	else
-		heap_abort_speculative(relation, &slot->tts_tid);
+		heap_abort_speculative(desc->relation, &slot->tts_tid);
 
 	if (shouldFree)
 		pfree(tuple);
+}
+
+static void
+heapam_multi_insert(TableInsertDesc desc, TupleTableSlot **slots, int ntuples)
+{
+	Relation	relation = desc->relation;
+	BulkInsertState	bistate = desc->bistate;
+	CommandId	cid = desc->cid;
+	int			options = desc->options;
+
+	heap_multi_insert(relation, slots, ntuples, cid, options, bistate);
 }
 
 static TM_Result
@@ -2554,7 +2562,7 @@ static const TableAmRoutine heapam_methods = {
 	.tuple_insert = heapam_tuple_insert,
 	.tuple_insert_speculative = heapam_tuple_insert_speculative,
 	.tuple_complete_speculative = heapam_tuple_complete_speculative,
-	.multi_insert = heap_multi_insert,
+	.multi_insert = heapam_multi_insert,
 	.tuple_delete = heapam_tuple_delete,
 	.tuple_update = heapam_tuple_update,
 	.tuple_lock = heapam_tuple_lock,

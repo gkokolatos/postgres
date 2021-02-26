@@ -286,7 +286,18 @@ table_tuple_get_latest_tid(TableScanDesc scan, ItemPointer tid)
 void
 simple_table_tuple_insert(Relation rel, TupleTableSlot *slot)
 {
-	table_tuple_insert(rel, slot, GetCurrentCommandId(true), 0, NULL);
+	/*
+	 * XXX: should be called with the desc directly, consider removing this
+	 * function completely
+	 */
+	TableInsertDescData desc = {
+		.relation = rel,
+		.options = 0,
+		.bistate = NULL,
+		.specToken = 0,
+		.cid = GetCurrentCommandId(true),
+	};
+	table_tuple_insert(&desc, slot);
 }
 
 /*

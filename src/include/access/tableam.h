@@ -39,6 +39,17 @@ struct TBMIterateResult;
 struct VacuumParams;
 struct ValidateIndexState;
 
+
+typedef struct TableInsertDescData {
+	Relation	relation;
+	CommandId	cid;
+	int			options;	/* flag bits for table_tuple_insert */
+	uint32		specToken;  /* XXX: not certain it belongs here */
+
+	struct BulkInsertStateData *bistate;
+} TableInsertDescData;
+typedef struct TableInsertDescData *TableInsertDesc;
+
 /*
  * Bitmask values for the flags argument to the scan_begin callback.
  */
@@ -453,27 +464,19 @@ typedef struct TableAmRoutine
 	 */
 
 	/* see table_tuple_insert() for reference about parameters */
-	void		(*tuple_insert) (Relation rel, TupleTableSlot *slot,
-								 CommandId cid, int options,
-								 struct BulkInsertStateData *bistate);
+	void		(*tuple_insert) (TableInsertDesc desc, TupleTableSlot *slot);
 
 	/* see table_tuple_insert_speculative() for reference about parameters */
-	void		(*tuple_insert_speculative) (Relation rel,
-											 TupleTableSlot *slot,
-											 CommandId cid,
-											 int options,
-											 struct BulkInsertStateData *bistate,
-											 uint32 specToken);
+	void		(*tuple_insert_speculative) (TableInsertDesc desc,
+											 TupleTableSlot *slot);
 
 	/* see table_tuple_complete_speculative() for reference about parameters */
-	void		(*tuple_complete_speculative) (Relation rel,
+	void		(*tuple_complete_speculative) (TableInsertDesc desc,
 											   TupleTableSlot *slot,
-											   uint32 specToken,
 											   bool succeeded);
 
 	/* see table_multi_insert() for reference about parameters */
-	void		(*multi_insert) (Relation rel, TupleTableSlot **slots, int nslots,
-								 CommandId cid, int options, struct BulkInsertStateData *bistate);
+	void		(*multi_insert) (TableInsertDesc desc, TupleTableSlot **slots, int nslots);
 
 	/* see table_tuple_delete() for reference about parameters */
 	TM_Result	(*tuple_delete) (Relation rel,
@@ -1281,11 +1284,9 @@ table_index_delete_tuples(Relation rel, TM_IndexDeleteOp *delstate)
  * reflected in the slots contents.
  */
 static inline void
-table_tuple_insert(Relation rel, TupleTableSlot *slot, CommandId cid,
-				   int options, struct BulkInsertStateData *bistate)
+table_tuple_insert(TableInsertDesc desc, TupleTableSlot *slot)
 {
-	rel->rd_tableam->tuple_insert(rel, slot, cid, options,
-								  bistate);
+	desc->relation->rd_tableam->tuple_insert(desc, slot);
 }
 
 /*
@@ -1305,8 +1306,14 @@ table_tuple_insert_speculative(Relation rel, TupleTableSlot *slot,
 							   struct BulkInsertStateData *bistate,
 							   uint32 specToken)
 {
-	rel->rd_tableam->tuple_insert_speculative(rel, slot, cid, options,
-											  bistate, specToken);
+	TableInsertDescData desc = {
+		.relation = rel,
+		.options = options,
+		.bistate = bistate,
+		.specToken = specToken,
+		.cid = cid,
+	};
+	rel->rd_tableam->tuple_insert_speculative(&desc, slot);
 }
 
 /*
@@ -1317,8 +1324,11 @@ static inline void
 table_tuple_complete_speculative(Relation rel, TupleTableSlot *slot,
 								 uint32 specToken, bool succeeded)
 {
-	rel->rd_tableam->tuple_complete_speculative(rel, slot, specToken,
-												succeeded);
+	TableInsertDescData desc = {
+		.relation = rel,
+		.specToken = specToken,
+	};
+	rel->rd_tableam->tuple_complete_speculative(&desc, slot, succeeded);
 }
 
 /*
@@ -1339,8 +1349,13 @@ static inline void
 table_multi_insert(Relation rel, TupleTableSlot **slots, int nslots,
 				   CommandId cid, int options, struct BulkInsertStateData *bistate)
 {
-	rel->rd_tableam->multi_insert(rel, slots, nslots,
-								  cid, options, bistate);
+	TableInsertDescData desc = {
+		.relation = rel,
+		.options = options,
+		.bistate = bistate,
+		.cid = cid,
+	};
+	rel->rd_tableam->multi_insert(&desc, slots, nslots);
 }
 
 /*

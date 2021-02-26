@@ -1080,8 +1080,17 @@ CopyFrom(CopyFromState cstate)
 					else
 					{
 						/* OK, store the tuple and create index entries for it */
-						table_tuple_insert(resultRelInfo->ri_RelationDesc,
-										   myslot, mycid, ti_options, bistate);
+						/*
+						 * XXX: This needs to be higher up and to persist
+ 						 * otherwise performance will be hit
+						 */
+						TableInsertDescData insertDesc = {
+							.relation = resultRelInfo->ri_RelationDesc,
+							.cid = mycid,
+							.options = ti_options,
+							.bistate = bistate,
+						};
+						table_tuple_insert(&insertDesc, myslot);
 
 						if (resultRelInfo->ri_NumIndices > 0)
 							recheckIndexes = ExecInsertIndexTuples(resultRelInfo,

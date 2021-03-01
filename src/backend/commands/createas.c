@@ -550,16 +550,14 @@ intorel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 		.relation = intoRelationDesc,
 		.cid = GetCurrentCommandId(true),
 		.options = TABLE_INSERT_SKIP_FSM,
+
+		/*
+		 * If WITH NO DATA is specified, there is no need to set up the state for
+		 * bulk inserts as there are no tuples to insert.
+		 */
+		.bistate = into->skipData ? NULL : GetBulkInsertState(),
 	};
 
-	/*
-	 * If WITH NO DATA is specified, there is no need to set up the state for
-	 * bulk inserts as there are no tuples to insert.
-	 */
-	if (into->skipData)
-	{
-		myState->insertDesc.bistate = GetBulkInsertState();
-	}
 	myState->reladdr = intoRelationAddr;
 
 	/*

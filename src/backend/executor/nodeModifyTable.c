@@ -577,6 +577,7 @@ ExecInsert(ModifyTableState *mtstate,
 			ItemPointerData conflictTid;
 			bool		specConflict;
 			List	   *arbiterIndexes;
+			TableInsertDescData insertDesc;
 
 			arbiterIndexes = resultRelInfo->ri_onConflictArbiterIndexes;
 
@@ -647,12 +648,16 @@ ExecInsert(ModifyTableState *mtstate,
 			 */
 			specToken = SpeculativeInsertionLockAcquire(GetCurrentTransactionId());
 
+			insertDesc = (TableInsertDescData){
+				.relation = resultRelationDesc,
+				.cid = estate->es_output_cid,
+				.options = 0,
+				.bistate = NULL,
+				.specToken = specToken,
+			};
+
 			/* insert the tuple, with the speculative token */
-			table_tuple_insert_speculative(resultRelationDesc, slot,
-										   estate->es_output_cid,
-										   0,
-										   NULL,
-										   specToken);
+			table_tuple_insert_speculative(&insertDesc, slot);
 
 			/* insert index entries for tuple */
 			recheckIndexes = ExecInsertIndexTuples(resultRelInfo,

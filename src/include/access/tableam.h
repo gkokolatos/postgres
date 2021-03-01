@@ -1301,19 +1301,9 @@ table_tuple_insert(TableInsertDesc desc, TupleTableSlot *slot)
  * table_tuple_complete_speculative(succeeded = ...).
  */
 static inline void
-table_tuple_insert_speculative(Relation rel, TupleTableSlot *slot,
-							   CommandId cid, int options,
-							   struct BulkInsertStateData *bistate,
-							   uint32 specToken)
+table_tuple_insert_speculative(TableInsertDesc desc, TupleTableSlot *slot)
 {
-	TableInsertDescData desc = {
-		.relation = rel,
-		.options = options,
-		.bistate = bistate,
-		.specToken = specToken,
-		.cid = cid,
-	};
-	rel->rd_tableam->tuple_insert_speculative(&desc, slot);
+	desc->relation->rd_tableam->tuple_insert_speculative(desc, slot);
 }
 
 /*

@@ -1311,14 +1311,11 @@ table_tuple_insert_speculative(TableInsertDesc desc, TupleTableSlot *slot)
  * succeeded is true, the tuple is fully inserted, if false, it's removed.
  */
 static inline void
-table_tuple_complete_speculative(Relation rel, TupleTableSlot *slot,
-								 uint32 specToken, bool succeeded)
+table_tuple_complete_speculative(TableInsertDesc desc, TupleTableSlot *slot,
+								 bool succeeded)
 {
-	TableInsertDescData desc = {
-		.relation = rel,
-		.specToken = specToken,
-	};
-	rel->rd_tableam->tuple_complete_speculative(&desc, slot, succeeded);
+	desc->relation->rd_tableam->tuple_complete_speculative(desc, slot,
+														   succeeded);
 }
 
 /*

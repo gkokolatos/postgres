@@ -666,8 +666,7 @@ ExecInsert(ModifyTableState *mtstate,
 												   arbiterIndexes);
 
 			/* adjust the tuple's state accordingly */
-			table_tuple_complete_speculative(resultRelationDesc, slot,
-											 specToken, !specConflict);
+			table_tuple_complete_speculative(&insertDesc, slot, !specConflict);
 
 			/*
 			 * Wake up anyone waiting for our decision.  They will re-check

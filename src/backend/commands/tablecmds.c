@@ -5619,13 +5619,12 @@ ATRewriteTable(AlteredTableInfo *tab, Oid OIDNewHeap, LOCKMODE lockmode)
 			if (newrel)
 			{
 				/* XXX: this has to happen higher */
-				TableInsertDescData insertDesc = {
-					.relation = newrel,
-					.cid = mycid,
-					.options = ti_options,
-					.bistate = bistate,
-				};
-				table_tuple_insert(&insertDesc, insertslot);
+				TableInsertDesc insertDesc = table_tuple_begin_insert(newrel,
+																	  mycid,
+																	  ti_options,
+																	  bistate,
+																	  0);
+				table_tuple_insert(insertDesc, insertslot);
 			}
 
 			ResetExprContext(econtext);

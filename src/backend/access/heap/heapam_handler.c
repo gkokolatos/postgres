@@ -237,6 +237,24 @@ heapam_tuple_satisfies_snapshot(Relation rel, TupleTableSlot *slot,
  * ----------------------------------------------------------------------------
  */
 
+static TableInsertDesc
+heapam_tuple_insert_begin(Relation rel, CommandId cid, int options,
+						  struct BulkInsertStateData *bistate,
+						  uint32 specToken)
+{
+	TableInsertDesc desc = NULL;
+
+	desc = palloc0(sizeof(TableInsertDescData));
+
+	desc->relation = rel;
+	desc->cid = cid;
+	desc->options = options;
+	desc->bistate = bistate;
+	desc->specToken = specToken;
+
+	return desc;
+}
+
 static void
 heapam_tuple_insert(TableInsertDesc desc, TupleTableSlot *slot)
 {
@@ -2559,6 +2577,7 @@ static const TableAmRoutine heapam_methods = {
 	.index_fetch_end = heapam_index_fetch_end,
 	.index_fetch_tuple = heapam_index_fetch_tuple,
 
+	.tuple_insert_begin = heapam_tuple_insert_begin,
 	.tuple_insert = heapam_tuple_insert,
 	.tuple_insert_speculative = heapam_tuple_insert_speculative,
 	.tuple_complete_speculative = heapam_tuple_complete_speculative,

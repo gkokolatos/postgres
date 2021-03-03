@@ -308,6 +308,7 @@ CopyMultiInsertBufferFlush(CopyMultiInsertInfo *miinfo,
 	int			nused = buffer->nused;
 	ResultRelInfo *resultRelInfo = buffer->resultRelInfo;
 	TupleTableSlot **slots = buffer->slots;
+	TableInsertDesc desc;
 
 	/*
 	 * Print error context information correctly, if one of the operations
@@ -316,17 +317,17 @@ CopyMultiInsertBufferFlush(CopyMultiInsertInfo *miinfo,
 	cstate->line_buf_valid = false;
 	save_cur_lineno = cstate->cur_lineno;
 
+	desc = table_tuple_begin_insert(resultRelInfo->ri_RelationDesc,
+									mycid,
+									ti_options,
+									buffer->bistate,
+									0);
 	/*
 	 * table_multi_insert may leak memory, so switch to short-lived memory
 	 * context before calling it.
 	 */
 	oldcontext = MemoryContextSwitchTo(GetPerTupleMemoryContext(estate));
-	table_multi_insert(resultRelInfo->ri_RelationDesc,
-					   slots,
-					   nused,
-					   mycid,
-					   ti_options,
-					   buffer->bistate);
+	table_multi_insert(desc, slots, nused);
 	MemoryContextSwitchTo(oldcontext);
 
 	for (i = 0; i < nused; i++)
@@ -1084,13 +1085,13 @@ CopyFrom(CopyFromState cstate)
 						 * XXX: This needs to be higher up and to persist
  						 * otherwise performance will be hit
 						 */
-						TableInsertDescData insertDesc = {
-							.relation = resultRelInfo->ri_RelationDesc,
-							.cid = mycid,
-							.options = ti_options,
-							.bistate = bistate,
-						};
-						table_tuple_insert(&insertDesc, myslot);
+						TableInsertDesc insertDesc;
+
+						insertDesc = table_tuple_begin_insert(resultRelInfo->ri_RelationDesc,
+												  			  mycid, ti_options,
+															  bistate, 0);
+
+						table_tuple_insert(insertDesc, myslot);
 
 						if (resultRelInfo->ri_NumIndices > 0)
 							recheckIndexes = ExecInsertIndexTuples(resultRelInfo,

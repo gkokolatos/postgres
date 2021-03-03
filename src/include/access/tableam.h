@@ -463,6 +463,12 @@ typedef struct TableAmRoutine
 	 * ------------------------------------------------------------------------
 	 */
 
+	TableInsertDesc (*tuple_insert_begin) (Relation rel,
+										   CommandId cid,
+										   int options,
+										   struct BulkInsertStateData *bistate,
+										   uint32 specToken);
+
 	/* see table_tuple_insert() for reference about parameters */
 	void		(*tuple_insert) (TableInsertDesc desc, TupleTableSlot *slot);
 
@@ -1249,6 +1255,15 @@ table_index_delete_tuples(Relation rel, TM_IndexDeleteOp *delstate)
  * ----------------------------------------------------------------------------
  */
 
+static inline TableInsertDesc
+table_tuple_begin_insert(Relation rel, CommandId cid, int options,
+						 struct BulkInsertStateData *bistate,
+						 uint32 specToken)
+{
+	return rel->rd_tableam->tuple_insert_begin(rel, cid, options,
+											   bistate, specToken);
+}
+
 /*
  * Insert a tuple from a slot into table AM routine.
  *
@@ -1333,16 +1348,9 @@ table_tuple_complete_speculative(TableInsertDesc desc, TupleTableSlot *slot,
  * temporary context before calling this, if that's a problem.
  */
 static inline void
-table_multi_insert(Relation rel, TupleTableSlot **slots, int nslots,
-				   CommandId cid, int options, struct BulkInsertStateData *bistate)
+table_multi_insert(TableInsertDesc desc, TupleTableSlot **slots, int nslots)
 {
-	TableInsertDescData desc = {
-		.relation = rel,
-		.options = options,
-		.bistate = bistate,
-		.cid = cid,
-	};
-	rel->rd_tableam->multi_insert(&desc, slots, nslots);
+	desc->relation->rd_tableam->multi_insert(desc, slots, nslots);
 }
 
 /*

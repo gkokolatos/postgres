@@ -577,7 +577,7 @@ ExecInsert(ModifyTableState *mtstate,
 			ItemPointerData conflictTid;
 			bool		specConflict;
 			List	   *arbiterIndexes;
-			TableInsertDescData insertDesc;
+			TableInsertDesc insertDesc;
 
 			arbiterIndexes = resultRelInfo->ri_onConflictArbiterIndexes;
 
@@ -648,16 +648,13 @@ ExecInsert(ModifyTableState *mtstate,
 			 */
 			specToken = SpeculativeInsertionLockAcquire(GetCurrentTransactionId());
 
-			insertDesc = (TableInsertDescData){
-				.relation = resultRelationDesc,
-				.cid = estate->es_output_cid,
-				.options = 0,
-				.bistate = NULL,
-				.specToken = specToken,
-			};
+			insertDesc = table_tuple_begin_insert(resultRelationDesc,
+												  estate->es_output_cid,
+												  0, NULL,
+												  specToken);
 
 			/* insert the tuple, with the speculative token */
-			table_tuple_insert_speculative(&insertDesc, slot);
+			table_tuple_insert_speculative(insertDesc, slot);
 
 			/* insert index entries for tuple */
 			recheckIndexes = ExecInsertIndexTuples(resultRelInfo,
@@ -666,7 +663,7 @@ ExecInsert(ModifyTableState *mtstate,
 												   arbiterIndexes);
 
 			/* adjust the tuple's state accordingly */
-			table_tuple_complete_speculative(&insertDesc, slot, !specConflict);
+			table_tuple_complete_speculative(insertDesc, slot, !specConflict);
 
 			/*
 			 * Wake up anyone waiting for our decision.  They will re-check
@@ -694,11 +691,12 @@ ExecInsert(ModifyTableState *mtstate,
 		{
 			/* insert the tuple normally */
 			/* XXX: this will have to move upwards */
-			TableInsertDescData insertDesc = {
-				.relation = resultRelationDesc,
-				.cid = estate->es_output_cid,
-			};
-			table_tuple_insert(&insertDesc, slot);
+			TableInsertDesc insertDesc;
+
+			insertDesc = table_tuple_begin_insert(resultRelationDesc,
+												  estate->es_output_cid,
+												  0, NULL, 0);
+			table_tuple_insert(insertDesc, slot);
 
 			/* insert index entries for tuple */
 			if (resultRelInfo->ri_NumIndices > 0)

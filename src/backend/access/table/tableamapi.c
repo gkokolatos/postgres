@@ -69,6 +69,7 @@ GetTableAmRoutine(Oid amhandler)
 	Assert(routine->index_delete_tuples != NULL);
 
 	Assert(routine->tuple_insert_begin != NULL);
+	Assert(routine->tuple_insert_end != NULL);
 	Assert(routine->tuple_insert != NULL);
 
 	/*

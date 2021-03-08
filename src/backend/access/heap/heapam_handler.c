@@ -254,6 +254,16 @@ heapam_tuple_insert_begin(Relation rel, CommandId cid, int options,
 }
 
 static void
+heapam_tuple_insert_end(TableInsertDesc desc)
+{
+	/* XXX: should we be the responsibles for finishing state? */
+	if (desc->bistate)
+		FreeBulkInsertState(desc->bistate);
+
+	pfree(desc);
+}
+
+static void
 heapam_tuple_insert(TableInsertDesc desc, TupleTableSlot *slot)
 {
 	bool		shouldFree = true;
@@ -2577,6 +2587,7 @@ static const TableAmRoutine heapam_methods = {
 	.index_fetch_tuple = heapam_index_fetch_tuple,
 
 	.tuple_insert_begin = heapam_tuple_insert_begin,
+	.tuple_insert_end = heapam_tuple_insert_end,
 	.tuple_insert = heapam_tuple_insert,
 	.tuple_insert_speculative = heapam_tuple_insert_speculative,
 	.tuple_complete_speculative = heapam_tuple_complete_speculative,

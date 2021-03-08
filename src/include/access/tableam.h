@@ -483,7 +483,8 @@ typedef struct TableAmRoutine
 	/* see table_multi_insert() for reference about parameters */
 	void		(*multi_insert) (TableInsertDesc desc, TupleTableSlot **slots, int nslots);
 
-	void		(*tuple_insert_finish) (TableInsertDesc desc);
+	/* see table_tuple_insert_end() for reference about parameters */
+	void		(*tuple_insert_end) (TableInsertDesc desc);
 
 	/* see table_tuple_delete() for reference about parameters */
 	TM_Result	(*tuple_delete) (Relation rel,
@@ -1354,10 +1355,15 @@ table_multi_insert(TableInsertDesc desc, TupleTableSlot **slots, int nslots)
 	desc->relation->rd_tableam->multi_insert(desc, slots, nslots);
 }
 
+/*
+ * Perform operations needed to end insertion of a tuple into a table.
+ *
+ * XXX: Expand comment
+ */
 static inline void
-table_tuple_insert_finish(TableInsertDesc desc)
+table_tuple_insert_end(TableInsertDesc desc)
 {
-	desc->relation->rd_tableam->tuple_insert_finish(desc);
+	desc->relation->rd_tableam->tuple_insert_end(desc);
 }
 
 /*

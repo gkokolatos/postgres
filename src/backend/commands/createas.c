@@ -553,8 +553,7 @@ intorel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 	myState->insertDesc = table_tuple_begin_insert(intoRelationDesc,
 												   GetCurrentCommandId(true),
 												   TABLE_INSERT_SKIP_FSM,
-												   into->skipData ? NULL : GetBulkInsertState(),
-												   0);
+												   into->skipData ? NULL : GetBulkInsertState());
 
 	myState->reladdr = intoRelationAddr;
 

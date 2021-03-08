@@ -5622,8 +5622,7 @@ ATRewriteTable(AlteredTableInfo *tab, Oid OIDNewHeap, LOCKMODE lockmode)
 				TableInsertDesc insertDesc = table_tuple_begin_insert(newrel,
 																	  mycid,
 																	  ti_options,
-																	  bistate,
-																	  0);
+																	  bistate);
 				table_tuple_insert(insertDesc, insertslot);
 			}
 

@@ -320,8 +320,7 @@ CopyMultiInsertBufferFlush(CopyMultiInsertInfo *miinfo,
 	desc = table_tuple_begin_insert(resultRelInfo->ri_RelationDesc,
 									mycid,
 									ti_options,
-									buffer->bistate,
-									0);
+									buffer->bistate);
 	/*
 	 * table_multi_insert may leak memory, so switch to short-lived memory
 	 * context before calling it.
@@ -1088,8 +1087,7 @@ CopyFrom(CopyFromState cstate)
 						TableInsertDesc insertDesc;
 
 						insertDesc = table_tuple_begin_insert(resultRelInfo->ri_RelationDesc,
-												  			  mycid, ti_options,
-															  bistate, 0);
+															  mycid, ti_options, bistate);
 
 						table_tuple_insert(insertDesc, myslot);
 

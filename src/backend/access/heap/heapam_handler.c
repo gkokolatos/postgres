@@ -239,8 +239,7 @@ heapam_tuple_satisfies_snapshot(Relation rel, TupleTableSlot *slot,
 
 static TableInsertDesc
 heapam_tuple_insert_begin(Relation rel, CommandId cid, int options,
-						  struct BulkInsertStateData *bistate,
-						  uint32 specToken)
+						  struct BulkInsertStateData *bistate)
 {
 	TableInsertDesc desc = NULL;
 
@@ -250,7 +249,6 @@ heapam_tuple_insert_begin(Relation rel, CommandId cid, int options,
 	desc->cid = cid;
 	desc->options = options;
 	desc->bistate = bistate;
-	desc->specToken = specToken;
 
 	return desc;
 }
@@ -274,7 +272,8 @@ heapam_tuple_insert(TableInsertDesc desc, TupleTableSlot *slot)
 }
 
 static void
-heapam_tuple_insert_speculative(TableInsertDesc desc, TupleTableSlot *slot)
+heapam_tuple_insert_speculative(TableInsertDesc desc, TupleTableSlot *slot,
+								uint32 specToken)
 {
 	bool		shouldFree = true;
 	HeapTuple	tuple = ExecFetchSlotHeapTuple(slot, true, &shouldFree);
@@ -283,7 +282,7 @@ heapam_tuple_insert_speculative(TableInsertDesc desc, TupleTableSlot *slot)
 	slot->tts_tableOid = RelationGetRelid(desc->relation);
 	tuple->t_tableOid = slot->tts_tableOid;
 
-	HeapTupleHeaderSetSpeculativeToken(tuple->t_data, desc->specToken);
+	HeapTupleHeaderSetSpeculativeToken(tuple->t_data, specToken);
 	desc->options |= HEAP_INSERT_SPECULATIVE;
 
 	/* Perform the insertion, and copy the resulting ItemPointer */

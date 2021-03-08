@@ -294,7 +294,6 @@ simple_table_tuple_insert(Relation rel, TupleTableSlot *slot)
 		.relation = rel,
 		.options = 0,
 		.bistate = NULL,
-		.specToken = 0,
 		.cid = GetCurrentCommandId(true),
 	};
 	table_tuple_insert(&desc, slot);

@@ -462,8 +462,7 @@ transientrel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 	myState->insertDesc = table_tuple_begin_insert(transientrel,
 												   GetCurrentCommandId(true),
 												   TABLE_INSERT_SKIP_FSM | TABLE_INSERT_FROZEN,
-												   GetBulkInsertState(),
-												   0);
+												   GetBulkInsertState());
 
 	/*
 	 * Valid smgr_targblock implies something already wrote to the relation.

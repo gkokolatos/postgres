@@ -650,11 +650,10 @@ ExecInsert(ModifyTableState *mtstate,
 
 			insertDesc = table_tuple_begin_insert(resultRelationDesc,
 												  estate->es_output_cid,
-												  0, NULL,
-												  specToken);
+												  0, NULL);
 
 			/* insert the tuple, with the speculative token */
-			table_tuple_insert_speculative(insertDesc, slot);
+			table_tuple_insert_speculative(insertDesc, slot, specToken);
 
 			/* insert index entries for tuple */
 			recheckIndexes = ExecInsertIndexTuples(resultRelInfo,
@@ -695,7 +694,7 @@ ExecInsert(ModifyTableState *mtstate,
 
 			insertDesc = table_tuple_begin_insert(resultRelationDesc,
 												  estate->es_output_cid,
-												  0, NULL, 0);
+												  0, NULL);
 			table_tuple_insert(insertDesc, slot);
 
 			/* insert index entries for tuple */

@@ -484,6 +484,8 @@ typedef struct TableAmRoutine
 	/* see table_multi_insert() for reference about parameters */
 	void		(*multi_insert) (TableInsertDesc desc, TupleTableSlot **slots, int nslots);
 
+	void		(*tuple_insert_finish) (TableInsertDesc desc);
+
 	/* see table_tuple_delete() for reference about parameters */
 	TM_Result	(*tuple_delete) (Relation rel,
 								 ItemPointer tid,
@@ -1351,6 +1353,12 @@ static inline void
 table_multi_insert(TableInsertDesc desc, TupleTableSlot **slots, int nslots)
 {
 	desc->relation->rd_tableam->multi_insert(desc, slots, nslots);
+}
+
+static inline void
+table_tuple_insert_finish(TableInsertDesc desc)
+{
+	desc->relation->rd_tableam->tuple_insert_finish(desc);
 }
 
 /*
